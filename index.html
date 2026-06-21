@@ -2,37 +2,37 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AXP Vision Snake 視覺貪食蛇</title>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>AXP Vision Snake</title>
+    
     <style>
+        /* 🌟 清除所有瀏覽器預設邊距，並完全鎖死網頁原生行為 */
         body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            background-color: #0f172a; overflow: hidden; 
-            display: flex; justify-content: center; align-items: center;
-            user-select: none; -webkit-user-select: none;
-            /* 🌟 極度重要：防止手機滑動時觸發瀏覽器上一頁或下拉重整 */
-            touch-action: none; 
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #f8fafc;
+            overflow: hidden; /* 隱藏任何可能出現的滾動條 */
+            touch-action: none; /* 終極防護：禁止下拉更新與網頁原生滑動 */
+            -webkit-touch-callout: none; /* 禁用 iOS 長按跳出選單 */
+            -webkit-user-select: none; /* 禁用 Safari 文字反白 */
+            user-select: none; /* 禁用文字反白 */
         }
+        
         #canvas-container {
-            display: flex; justify-content: center; align-items: center; position: relative;
-        }
-        canvas {
-            border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.6);
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
     </style>
-    <script>
-        document.addEventListener('contextmenu', event => event.preventDefault());
-        document.onkeydown = function(e) {
-            if (e.keyCode == 123) { return false; } 
-            if (e.ctrlKey && e.shiftKey && e.keyCode == 73) { return false; } 
-            if (e.ctrlKey && e.keyCode == 85) { return false; } 
-        };
-    </script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body oncontextmenu="return false;" onselectstart="return false;" ondragstart="return false;">
+<body>
     <div id="canvas-container"></div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
 </body>
 </html>
