@@ -1,4 +1,4 @@
-// app.js - AXP Vision Snake V6.1: Fatal Crash Fix & Stable Engine
+// app.js - AXP Vision Snake V6.2: Hyper-Responsive Touch Engine
 
 // ==========================================
 // 🛡️ 網域防護與 Supabase 初始化
@@ -296,7 +296,7 @@ function drawGameState() {
 }
 
 // ==========================================
-// 🌟 事件綁定中心 (修復畫布建立後才綁定)
+// 🌟 核心升級：極速觸控引擎 (Touchmove)
 // ==========================================
 function handleUIClick(clientX, clientY) {
     const rect = canvas.getBoundingClientRect(); 
@@ -310,32 +310,49 @@ function handleUIClick(clientX, clientY) {
     }
     
     if (gameState === STATE.LEADERBOARD && mx > 150 && mx < 450 && my > 680 && my < 770) { gameState = STATE.START; return; }
-    
     if (gameState === STATE.START && mx > 120 && mx < 480 && my > 480 && my < 580) { startGame(); enterFullscreen(); }
 }
 
 function bindMouseEvents() { 
-    // 1. 滑鼠點擊
     canvas.addEventListener('mousedown', (e) => { handleUIClick(e.clientX, e.clientY); }); 
 
-    // 2. 🌟 確保 canvas 存在後，才綁定觸控事件！
     let touchStartX = 0; let touchStartY = 0;
 
     canvas.addEventListener('touchstart', e => { 
         if (gameState === STATE.PLAYING) { e.preventDefault(); window.mobileAccelerating = true; }
-        touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; 
+        touchStartX = e.touches[0].clientX; 
+        touchStartY = e.touches[0].clientY; 
+    }, {passive: false});
+
+    // 🌟 關鍵升級：滑動途中就瞬間判定轉向！
+    canvas.addEventListener('touchmove', e => {
+        if (gameState !== STATE.PLAYING) return;
+        e.preventDefault(); 
+        
+        let currentX = e.touches[0].clientX;
+        let currentY = e.touches[0].clientY;
+        let dx = currentX - touchStartX;
+        let dy = currentY - touchStartY;
+        
+        // 降低門檻至 20px，只要稍微滑動就轉向，大幅提升手感
+        if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
+            if (Math.abs(dx) > Math.abs(dy)) { setNextDirection(dx > 0 ? 1 : -1, 0); } 
+            else { setNextDirection(0, dy > 0 ? 1 : -1); }
+            
+            // 轉向後重置圓心，允許玩家在手指不放開的情況下連續轉彎！
+            touchStartX = currentX;
+            touchStartY = currentY;
+        }
     }, {passive: false});
 
     canvas.addEventListener('touchend', e => {
         window.mobileAccelerating = false;
-        let dx = e.changedTouches[0].screenX - touchStartX; let dy = e.changedTouches[0].screenY - touchStartY;
-        
-        if (gameState === STATE.PLAYING) {
-            e.preventDefault();
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) { setNextDirection(dx > 0 ? 1 : -1, 0); }
-            else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) { setNextDirection(0, dy > 0 ? 1 : -1); }
-            else if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); } 
+        if (gameState !== STATE.PLAYING) {
+            let dx = e.changedTouches[0].clientX - touchStartX; let dy = e.changedTouches[0].clientY - touchStartY;
+            if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); } 
         } else {
+            // 遊玩中點擊暫停按鈕
+            let dx = e.changedTouches[0].clientX - touchStartX; let dy = e.changedTouches[0].clientY - touchStartY;
             if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }
         }
     }, {passive: false});
@@ -343,7 +360,7 @@ function bindMouseEvents() {
     canvas.addEventListener('touchcancel', () => window.mobileAccelerating = false);
 }
 
-// 全域鍵盤事件 (不需要等畫布)
+// 全域鍵盤事件
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return; 
     if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
@@ -362,13 +379,11 @@ window.addEventListener('keyup', (e) => keys[e.code] = false);
 // 雲端儲存與生命週期
 // ==========================================
 function triggerGameOver() {
-    gameState = STATE.GAMEOVER;
-    exitFullscreen(); 
+    gameState = STATE.GAMEOVER; exitFullscreen(); 
     setTimeout(async () => {
         await fetchLeaderboardData();
         let lowestScore = globalLeaderboardData.length === 10 ? globalLeaderboardData[9].score : 0;
-        if (globalLeaderboardData.length < 10 || score > lowestScore) { showNameInputModal(); } 
-        else { gameState = STATE.LEADERBOARD; }
+        if (globalLeaderboardData.length < 10 || score > lowestScore) { showNameInputModal(); } else { gameState = STATE.LEADERBOARD; }
     }, 1500);
 }
 
