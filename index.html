@@ -6,18 +6,17 @@
     <title>AXP Vision Snake</title>
     
     <style>
-        /* 🌟 清除所有瀏覽器預設邊距，並完全鎖死網頁原生行為 */
         body, html {
             margin: 0;
             padding: 0;
             width: 100%;
             height: 100%;
             background-color: #f8fafc;
-            overflow: hidden; /* 隱藏任何可能出現的滾動條 */
-            touch-action: none; /* 終極防護：禁止下拉更新與網頁原生滑動 */
-            -webkit-touch-callout: none; /* 禁用 iOS 長按跳出選單 */
-            -webkit-user-select: none; /* 禁用 Safari 文字反白 */
-            user-select: none; /* 禁用文字反白 */
+            overflow: hidden; 
+            touch-action: none; 
+            -webkit-touch-callout: none; 
+            -webkit-user-select: none; 
+            user-select: none; 
         }
         
         #canvas-container {
@@ -32,7 +31,8 @@
 <body>
     <div id="canvas-container"></div>
     
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    
     <script src="app.js"></script>
 </body>
 </html>
