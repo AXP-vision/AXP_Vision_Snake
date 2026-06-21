@@ -1,4 +1,4 @@
-// app.js - AXP Vision Snake V5.1: Mobile Leaderboard & Touch Fixes
+// app.js - AXP Vision Snake V6.0: Smart Platform & Auto-Fullscreen
 
 // ==========================================
 // 🛡️ 網域防護與 Supabase 初始化
@@ -30,12 +30,14 @@ const STATE = { START: 0, PLAYING: 1, PAUSED: 2, GAMEOVER: 3, LEADERBOARD: 4 };
 let gameState = STATE.START;
 
 let globalLeaderboardData = [];
-let score = 0;
-let deathReason = "";
+let score = 0; let deathReason = "";
 
 let isOknMoving = false; let oknDirection = 1; let oknSpeedLevel = 1; let currentOknOffset = 0;
 let keys = {};
 window.mobileAccelerating = false;
+
+// 🌟 新增：裝置偵測 (判斷是否為手機/觸控螢幕)
+const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
 
 // ==========================================
 // 🐍 遊戲實體 (Snake, Items, Particles)
@@ -67,6 +69,23 @@ function resizeCanvas() {
     canvas.style.width = `${GAME_WIDTH * scale}px`; canvas.style.height = `${GAME_HEIGHT * scale}px`;
 }
 
+// 🌟 全螢幕引擎
+function enterFullscreen() {
+    if (!isMobile) return; 
+    const elem = document.documentElement; 
+    if (elem.requestFullscreen) { elem.requestFullscreen().catch(()=>{}); }
+    else if (elem.webkitRequestFullscreen) { elem.webkitRequestFullscreen(); }
+    try { screen.orientation.lock('portrait').catch(()=>{}); } catch(e){}
+}
+
+function exitFullscreen() {
+    if (!isMobile) return;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    }
+}
+
 // ==========================================
 // 邏輯核心：產生器與特效
 // ==========================================
@@ -74,9 +93,7 @@ function spawnItem(typeStr) {
     let emptyCells = [];
     for (let x = 0; x < COLS; x++) {
         for (let y = 0; y < ROWS; y++) {
-            if (!snake.body.some(segment => segment.x === x && segment.y === y) && !items.some(item => item.x === x && item.y === y)) {
-                emptyCells.push({x, y});
-            }
+            if (!snake.body.some(segment => segment.x === x && segment.y === y) && !items.some(item => item.x === x && item.y === y)) emptyCells.push({x, y});
         }
     }
     if (emptyCells.length === 0) return;
@@ -89,14 +106,12 @@ function spawnItem(typeStr) {
 }
 
 function createParticles(x, y, type) {
-    const px = x * GRID_SIZE + GRID_SIZE/2; const py = y * GRID_SIZE + GRID_SIZE/2;
-    const count = type === 'bomb' ? 30 : 15;
+    const px = x * GRID_SIZE + GRID_SIZE/2; const py = y * GRID_SIZE + GRID_SIZE/2; const count = type === 'bomb' ? 30 : 15;
     for (let i = 0; i < count; i++) {
         const angle = Math.random() * Math.PI * 2; const speed = Math.random() * (type === 'bomb' ? 8 : 4);
         let color = '#ef4444'; 
         if (type === 'bomb') color = Math.random() > 0.5 ? '#dc2626' : '#fbbf24';
-        else if (type === 'speed') color = '#fbbf24';
-        else if (type === 'slow') color = '#34d399';
+        else if (type === 'speed') color = '#fbbf24'; else if (type === 'slow') color = '#34d399';
         particles.push({ x: px, y: py, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, color: color, life: 1.0, decay: Math.random() * 0.05 + 0.02, size: Math.random() * 6 + 2 });
     }
 }
@@ -121,9 +136,7 @@ function setNextDirection(nx, ny) {
 function updateGame(timestamp) {
     if (gameState !== STATE.PLAYING) return;
 
-    for (let i = items.length - 1; i >= 0; i--) {
-        if (items[i].type !== 'fruit' && Date.now() - items[i].spawnTime > 15000) items.splice(i, 1);
-    }
+    for (let i = items.length - 1; i >= 0; i--) { if (items[i].type !== 'fruit' && Date.now() - items[i].spawnTime > 15000) items.splice(i, 1); }
 
     let isSpeedingUp = keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'] || window.mobileAccelerating;
     let actualTickRate = isSpeedingUp ? Math.max(80, snake.currentTickRate / 2.5) : snake.currentTickRate;
@@ -133,14 +146,11 @@ function updateGame(timestamp) {
 
         if (nextX < 0 || nextX >= COLS || nextY < 0 || nextY >= ROWS) {
             snake.wallTimer += actualTickRate;
-            if (snake.wallTimer >= 1000) { deathReason = "撞牆發呆？系統判定神經連結中斷。"; triggerGameOver(); }
-            return;
+            if (snake.wallTimer >= 1000) { deathReason = "撞牆發呆？系統判定神經連結中斷。"; triggerGameOver(); } return;
         } else { snake.wallTimer = 0; }
 
         for (let i = 0; i < snake.body.length; i++) {
-            if (nextX === snake.body[i].x && nextY === snake.body[i].y) {
-                deathReason = "撞到自己的身體而亡"; triggerGameOver(); return;
-            }
+            if (nextX === snake.body[i].x && nextY === snake.body[i].y) { deathReason = "撞到自己的身體而亡"; triggerGameOver(); return; }
         }
 
         snake.dx = snake.nextDx; snake.dy = snake.nextDy; snake.body.unshift({ x: nextX, y: nextY });
@@ -150,10 +160,8 @@ function updateGame(timestamp) {
             let item = items[i];
             if (item.x === nextX && item.y === nextY) {
                 if (item.type === 'fruit') {
-                    score += item.score; ateFruit = true; createParticles(nextX, nextY, 'fruit');
-                    items.splice(i, 1); spawnItem('fruit'); 
-                    let rand = Math.random();
-                    if (rand < 0.15) spawnItem('bomb'); else if (rand >= 0.15 && rand < 0.25) spawnItem('speed'); else if (rand >= 0.25 && rand < 0.35) spawnItem('slow');
+                    score += item.score; ateFruit = true; createParticles(nextX, nextY, 'fruit'); items.splice(i, 1); spawnItem('fruit'); 
+                    let rand = Math.random(); if (rand < 0.15) spawnItem('bomb'); else if (rand >= 0.15 && rand < 0.25) spawnItem('speed'); else if (rand >= 0.25 && rand < 0.35) spawnItem('slow');
                 } else if (item.type === 'bomb') {
                     createParticles(nextX, nextY, 'bomb'); items.splice(i, 1);
                     if (snake.body.length <= 2) { deathReason = "單一節點引爆！邏輯抑制失敗。"; triggerGameOver(); return; } 
@@ -177,14 +185,12 @@ function updateGame(timestamp) {
 // ==========================================
 function drawEverything() {
     ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, GAME_WIDTH, MATRIX_SIZE);
-    
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, GAME_WIDTH, MATRIX_SIZE); ctx.clip();
     
     if (isOknMoving && gameState === STATE.PLAYING) {
         currentOknOffset += (oknSpeedLevel * 1.0) * oknDirection;
         if (currentOknOffset >= 80) currentOknOffset -= 80; if (currentOknOffset <= -80) currentOknOffset += 80;
-        ctx.fillStyle = '#e2e8f0'; 
-        for (let i = -80; i < GAME_WIDTH + 80; i += 80) { ctx.fillRect(i + currentOknOffset, 0, 40, MATRIX_SIZE); }
+        ctx.fillStyle = '#e2e8f0'; for (let i = -80; i < GAME_WIDTH + 80; i += 80) { ctx.fillRect(i + currentOknOffset, 0, 40, MATRIX_SIZE); }
     } else {
         ctx.strokeStyle = '#f1f5f9'; ctx.lineWidth = 1;
         for(let i=0; i<GAME_WIDTH; i+=GRID_SIZE) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,MATRIX_SIZE); ctx.stroke(); }
@@ -205,17 +211,13 @@ function drawEverything() {
         const px = segment.x * GRID_SIZE; const py = segment.y * GRID_SIZE;
         if (index === 0) {
             ctx.fillStyle = '#10b981'; ctx.beginPath(); ctx.roundRect(px, py, GRID_SIZE, GRID_SIZE, 8); ctx.fill();
-            ctx.fillStyle = 'white'; ctx.beginPath();
-            let ex1, ey1, ex2, ey2;
-            if (snake.dx === 1) { ex1 = px+28; ey1 = py+10; ex2 = px+28; ey2 = py+30; }
-            else if (snake.dx === -1) { ex1 = px+12; ey1 = py+10; ex2 = px+12; ey2 = py+30; }
-            else if (snake.dy === 1) { ex1 = px+10; ey1 = py+28; ex2 = px+30; ey2 = py+28; }
-            else { ex1 = px+10; ey1 = py+12; ex2 = px+30; ey2 = py+12; }
+            ctx.fillStyle = 'white'; ctx.beginPath(); let ex1, ey1, ex2, ey2;
+            if (snake.dx === 1) { ex1 = px+28; ey1 = py+10; ex2 = px+28; ey2 = py+30; } else if (snake.dx === -1) { ex1 = px+12; ey1 = py+10; ex2 = px+12; ey2 = py+30; }
+            else if (snake.dy === 1) { ex1 = px+10; ey1 = py+28; ex2 = px+30; ey2 = py+28; } else { ex1 = px+10; ey1 = py+12; ex2 = px+30; ey2 = py+12; }
             ctx.arc(ex1, ey1, 3, 0, Math.PI*2); ctx.arc(ex2, ey2, 3, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = '#0f172a'; ctx.beginPath(); ctx.arc(ex1+snake.dx*2, ey1+snake.dy*2, 1.5, 0, Math.PI*2); ctx.arc(ex2+snake.dx*2, ey2+snake.dy*2, 1.5, 0, Math.PI*2); ctx.fill();
         } else {
-            ctx.fillStyle = '#34d399'; ctx.strokeStyle = '#059669'; ctx.lineWidth = 1.5;
-            ctx.beginPath(); ctx.roundRect(px+2, py+2, GRID_SIZE-4, GRID_SIZE-4, 6); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#34d399'; ctx.strokeStyle = '#059669'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.roundRect(px+2, py+2, GRID_SIZE-4, GRID_SIZE-4, 6); ctx.fill(); ctx.stroke();
         }
     });
 
@@ -227,17 +229,25 @@ function drawEverything() {
 function drawHUDPanel() {
     if (gameState === STATE.START) return;
     
+    // 分數
     ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 28px "Orbitron", monospace'; ctx.textAlign = 'center';
     ctx.fillText(`SCORE: ${score}`, GAME_WIDTH / 2, MATRIX_SIZE + 45);
     
+    // 速度與衝刺狀態
     let isSpeedingUp = keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'] || window.mobileAccelerating;
-    
     if (isSpeedingUp) {
         ctx.fillStyle = '#ef4444'; ctx.font = 'bold 16px Arial'; ctx.fillText(`⚡ 衝刺模式啟動中...`, GAME_WIDTH / 2, MATRIX_SIZE + 85);
     } else {
         let speedLevel = (600 / snake.currentTickRate).toFixed(1);
         ctx.fillStyle = '#64748b'; ctx.font = 'bold 16px Arial'; ctx.fillText(`當前基準速度: x${speedLevel}`, GAME_WIDTH / 2, MATRIX_SIZE + 85);
     }
+
+    // 🌟 新增：實體暫停按鈕
+    ctx.fillStyle = gameState === STATE.PAUSED ? '#ef4444' : '#334155';
+    ctx.beginPath(); ctx.roundRect(240, 720, 120, 45, 8); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(gameState === STATE.PAUSED ? '▶ 繼 續' : '|| 暫 停', 300, 742);
+    ctx.textBaseline = 'alphabetic';
 }
 
 function drawOknButton() {
@@ -263,14 +273,15 @@ function drawGameState() {
         ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(70, 280, 460, 160, 12); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#334155'; ctx.font = '18px Arial'; ctx.fillText('🍎 經典紅蘋果：激活周邊視野與平滑追視', GAME_WIDTH / 2, 330); ctx.fillText('💣 避開炸彈、⚡ 加速、🐢 減速：Go/No-Go 抑制', GAME_WIDTH / 2, 380);
         
-        ctx.fillStyle = '#d97706'; ctx.font = 'bold 16px Arial'; ctx.fillText('💡 螢幕長按 (或長按方向鍵) 可啟動衝刺', GAME_WIDTH / 2, 420);
+        let hintMsg = isMobile ? '💡 螢幕長按可啟動衝刺 / 下方可點擊暫停' : '💡 長按方向鍵可衝刺 / 空白鍵可暫停';
+        ctx.fillStyle = '#d97706'; ctx.font = 'bold 16px Arial'; ctx.fillText(hintMsg, GAME_WIDTH / 2, 420);
 
         ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.roundRect(150, 500, 300, 60, 8); ctx.fill();
         ctx.fillStyle = '#ffffff'; ctx.font = 'bold 24px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('啟 動', 300, 530); ctx.textBaseline = 'alphabetic'; 
     }
     else if (gameState === STATE.PAUSED) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(0, 0, GAME_WIDTH, MATRIX_SIZE); 
-        ctx.fillStyle = '#1e293b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 40px Arial'; ctx.fillText('暫停中', GAME_WIDTH / 2, MATRIX_SIZE / 2); ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)'; ctx.fillRect(0, 0, GAME_WIDTH, MATRIX_SIZE); 
+        ctx.fillStyle = '#1e293b'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 40px Arial'; ctx.fillText('遊戲暫停', GAME_WIDTH / 2, MATRIX_SIZE / 2); ctx.textBaseline = 'alphabetic';
     }
     else if (gameState === STATE.GAMEOVER) {
         ctx.fillStyle = 'rgba(248, 250, 252, 0.9)'; ctx.fillRect(0, 0, GAME_WIDTH, MATRIX_SIZE); 
@@ -290,32 +301,36 @@ function drawGameState() {
 }
 
 // ==========================================
-// 🌟 手機觸控與按鈕統一處理中心
+// 🌟 UI 點擊事件處理中心
 // ==========================================
 function handleUIClick(clientX, clientY) {
     const rect = canvas.getBoundingClientRect(); 
-    const mx = (clientX - rect.left) * (GAME_WIDTH / rect.width); 
-    const my = (clientY - rect.top) * (GAME_HEIGHT / rect.height);
+    const mx = (clientX - rect.left) * (GAME_WIDTH / rect.width); const my = (clientY - rect.top) * (GAME_HEIGHT / rect.height);
     
-    // OKN 按鈕 (擴大判定區)
     if (mx > 10 && mx < 130 && my > MATRIX_SIZE + 10 && my < MATRIX_SIZE + 75) { isOknMoving = !isOknMoving; return; }
     if (mx > 470 && mx < 590 && my > MATRIX_SIZE + 10 && my < MATRIX_SIZE + 75) { oknDirection *= -1; return; }
     
-    // 返回按鈕
+    // 🌟 新增：點擊暫停按鈕
+    if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
+        if (mx > 240 && mx < 360 && my > 720 && my < 765) {
+            gameState = gameState === STATE.PLAYING ? STATE.PAUSED : STATE.PLAYING;
+            return;
+        }
+    }
+    
     if (gameState === STATE.LEADERBOARD && mx > 150 && mx < 450 && my > 680 && my < 770) { gameState = STATE.START; return; }
     
-    // 啟動按鈕
     if (gameState === STATE.START && mx > 120 && mx < 480 && my > 480 && my < 580) { 
         startGame(); 
-        if (container.requestFullscreen) { container.requestFullscreen().catch(e=>{}); } 
-        else if (container.webkitRequestFullscreen) { container.webkitRequestFullscreen(); }
+        enterFullscreen(); // 啟動自動全螢幕
     }
 }
 
-function bindMouseEvents() {
-    canvas.addEventListener('mousedown', (e) => { handleUIClick(e.clientX, e.clientY); });
-}
+function bindMouseEvents() { canvas.addEventListener('mousedown', (e) => { handleUIClick(e.clientX, e.clientY); }); }
 
+// ==========================================
+// 鍵盤與精準觸控系統
+// ==========================================
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return; 
     if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
@@ -325,44 +340,45 @@ window.addEventListener('keydown', (e) => {
     else if (e.code === 'ArrowDown') setNextDirection(0, 1);
     else if (e.code === 'ArrowLeft') setNextDirection(-1, 0);
     else if (e.code === 'ArrowRight') setNextDirection(1, 0);
-    else if (e.code === 'Enter') { if (gameState === STATE.START) startGame(); else if (gameState === STATE.LEADERBOARD) { gameState = STATE.START; } }
+    else if (e.code === 'Enter') { if (gameState === STATE.START) { startGame(); enterFullscreen(); } else if (gameState === STATE.LEADERBOARD) gameState = STATE.START; }
 }, { passive: false });
 
 window.addEventListener('keyup', (e) => keys[e.code] = false);
 
 let touchStartX = 0; let touchStartY = 0;
-window.addEventListener('touchstart', e => { 
-    // 🌟 防止阻擋輸入框
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+
+// 🌟 精準分區防護：只在 Canvas 上綁定 touch，且只在遊玩時阻擋預設行為
+canvas.addEventListener('touchstart', e => { 
+    if (gameState === STATE.PLAYING) {
+        e.preventDefault(); // 鎖死瀏覽器滑動，確保蛇的轉向 100% 成功
+        window.mobileAccelerating = true;
+    }
     touchStartX = e.changedTouches[0].screenX; 
     touchStartY = e.changedTouches[0].screenY; 
-    if (gameState === STATE.PLAYING) window.mobileAccelerating = true;
 }, {passive: false});
 
-window.addEventListener('touchend', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+canvas.addEventListener('touchend', e => {
     window.mobileAccelerating = false;
-    
     let dx = e.changedTouches[0].screenX - touchStartX; let dy = e.changedTouches[0].screenY - touchStartY;
     
     if (gameState === STATE.PLAYING) {
+        e.preventDefault();
         if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) { setNextDirection(dx > 0 ? 1 : -1, 0); }
         else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) { setNextDirection(0, dy > 0 ? 1 : -1); }
+        else if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); } // 允許遊玩時點擊暫停
     } else {
-        // 🌟 手機專屬 Tap (輕觸) 偵測：解決按鈕沒反應的問題
-        if (Math.abs(dx) < 15 && Math.abs(dy) < 15) {
-            handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
-        }
+        if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }
     }
 }, {passive: false});
 
-window.addEventListener('touchcancel', () => window.mobileAccelerating = false);
+canvas.addEventListener('touchcancel', () => window.mobileAccelerating = false);
 
 // ==========================================
 // 雲端儲存與生命週期
 // ==========================================
 function triggerGameOver() {
     gameState = STATE.GAMEOVER;
+    exitFullscreen(); // 撞死自動退出全螢幕，方便打字
     setTimeout(async () => {
         await fetchLeaderboardData();
         let lowestScore = globalLeaderboardData.length === 10 ? globalLeaderboardData[9].score : 0;
@@ -399,10 +415,7 @@ function showNameInputModal() {
 }
 
 async function fetchLeaderboardData() {
-    try {
-        const { data, error } = await supabaseClient.from('snake_leaderboard').select('*').order('score', { ascending: false }).limit(10);
-        if (data) globalLeaderboardData = data;
-    } catch (err) { console.error("無法取得雲端排行榜:", err); }
+    try { const { data, error } = await supabaseClient.from('snake_leaderboard').select('*').order('score', { ascending: false }).limit(10); if (data) globalLeaderboardData = data; } catch (err) {}
 }
 
 function startGame() {
@@ -412,13 +425,8 @@ function startGame() {
     spawnItem('fruit'); gameState = STATE.PLAYING; lastTickTime = performance.now();
 }
 
-function gameLoop(timestamp) {
-    updateGame(timestamp); updateParticles(); drawEverything(); requestAnimationFrame(gameLoop);
-}
+function gameLoop(timestamp) { updateGame(timestamp); updateParticles(); drawEverything(); requestAnimationFrame(gameLoop); }
 
-function bootGame() {
-    setupCanvas(); bindMouseEvents(); 
-    fetchLeaderboardData().finally(() => { requestAnimationFrame(gameLoop); });
-}
+function bootGame() { setupCanvas(); bindMouseEvents(); fetchLeaderboardData().finally(() => { requestAnimationFrame(gameLoop); }); }
 
 if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', bootGame); } else { bootGame(); }
