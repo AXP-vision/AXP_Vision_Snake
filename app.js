@@ -144,7 +144,7 @@ function updateGame(timestamp) {
 
         if (nextX < 0 || nextX >= COLS || nextY < 0 || nextY >= ROWS) {
             snake.wallTimer += actualTickRate;
-            if (snake.wallTimer >= 1000) { deathReason = "撞牆發呆？系統判定神經連結中斷。"; triggerGameOver(); } return;
+            if (snake.wallTimer >= 1000) { deathReason = "撞牆而亡！你是在發呆？。"; triggerGameOver(); } return;
         } else { snake.wallTimer = 0; }
 
         for (let i = 0; i < snake.body.length; i++) {
