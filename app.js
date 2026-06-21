@@ -1,4 +1,4 @@
-// app.js - AXP Vision Snake V6.2: Hyper-Responsive Touch Engine
+// app.js - AXP Vision Snake V7.0: Retina Display Crispness
 
 // ==========================================
 // 🛡️ 網域防護與 Supabase 初始化
@@ -45,7 +45,7 @@ let snake = { body: [], dx: 1, dy: 0, nextDx: 1, nextDy: 0, wallTimer: 0, curren
 let items = []; let particles = []; let lastTickTime = 0;
 
 // ==========================================
-// 🎮 初始化與畫布設定
+// 🎮 初始化與畫布設定 (🌟 視網膜螢幕升級)
 // ==========================================
 function setupCanvas() {
     container = document.getElementById('canvas-container');
@@ -55,7 +55,6 @@ function setupCanvas() {
     ctx = canvas.getContext('2d');
     container.appendChild(canvas);
 
-    canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT;
     canvas.style.display = 'block'; canvas.style.margin = '0 auto'; canvas.style.backgroundColor = '#ffffff';
     
     window.addEventListener('resize', resizeCanvas);
@@ -65,7 +64,19 @@ function setupCanvas() {
 function resizeCanvas() {
     if (!canvas) return;
     const scale = Math.min(window.innerWidth / GAME_WIDTH, window.innerHeight / GAME_HEIGHT);
-    canvas.style.width = `${GAME_WIDTH * scale}px`; canvas.style.height = `${GAME_HEIGHT * scale}px`;
+    // 🌟 獲取設備的像素比例 (Retina 螢幕通常是 2 或 3)
+    const dpr = window.devicePixelRatio || 1; 
+
+    // 1. 設定 CSS 的顯示大小 (佔據螢幕的空間)
+    canvas.style.width = `${GAME_WIDTH * scale}px`; 
+    canvas.style.height = `${GAME_HEIGHT * scale}px`;
+
+    // 2. 設定 Canvas 內部的真實物理像素 (讓畫質提升 2~3 倍)
+    canvas.width = GAME_WIDTH * scale * dpr;
+    canvas.height = GAME_HEIGHT * scale * dpr;
+
+    // 3. 重新映射繪圖座標系，讓遊戲維持用 600x800 的座標作畫
+    ctx.scale(scale * dpr, scale * dpr);
 }
 
 function enterFullscreen() {
@@ -129,7 +140,7 @@ function setNextDirection(nx, ny) {
 }
 
 // ==========================================
-// 遊戲主循環更新
+// 遊戲主循環更新 (🌟 保留你修改的專屬台詞)
 // ==========================================
 function updateGame(timestamp) {
     if (gameState !== STATE.PLAYING) return;
@@ -148,7 +159,7 @@ function updateGame(timestamp) {
         } else { snake.wallTimer = 0; }
 
         for (let i = 0; i < snake.body.length; i++) {
-            if (nextX === snake.body[i].x && nextY === snake.body[i].y) { deathReason = "撞到自己的身體而亡"; triggerGameOver(); return; }
+            if (nextX === snake.body[i].x && nextY === snake.body[i].y) { deathReason = "哎呀！不小心咬到自己的身體啦！🐍"; triggerGameOver(); return; }
         }
 
         snake.dx = snake.nextDx; snake.dy = snake.nextDy; snake.body.unshift({ x: nextX, y: nextY });
@@ -162,7 +173,7 @@ function updateGame(timestamp) {
                     let rand = Math.random(); if (rand < 0.15) spawnItem('bomb'); else if (rand >= 0.15 && rand < 0.25) spawnItem('speed'); else if (rand >= 0.25 && rand < 0.35) spawnItem('slow');
                 } else if (item.type === 'bomb') {
                     createParticles(nextX, nextY, 'bomb'); items.splice(i, 1);
-                    if (snake.body.length <= 2) { deathReason = "單一節點引爆！邏輯抑制失敗。"; triggerGameOver(); return; } 
+                    if (snake.body.length <= 2) { deathReason = "砰！吃到炸彈，會變瘦喔！！。"; triggerGameOver(); return; } 
                     else { score = Math.max(0, score - 30); snake.body.pop(); snake.body.pop(); ateFruit = true; }
                 } else if (item.type === 'speed') {
                     createParticles(nextX, nextY, 'speed'); items.splice(i, 1);
@@ -296,7 +307,7 @@ function drawGameState() {
 }
 
 // ==========================================
-// 🌟 核心升級：極速觸控引擎 (Touchmove)
+// 🌟 事件綁定中心
 // ==========================================
 function handleUIClick(clientX, clientY) {
     const rect = canvas.getBoundingClientRect(); 
@@ -324,24 +335,17 @@ function bindMouseEvents() {
         touchStartY = e.touches[0].clientY; 
     }, {passive: false});
 
-    // 🌟 關鍵升級：滑動途中就瞬間判定轉向！
     canvas.addEventListener('touchmove', e => {
         if (gameState !== STATE.PLAYING) return;
         e.preventDefault(); 
         
-        let currentX = e.touches[0].clientX;
-        let currentY = e.touches[0].clientY;
-        let dx = currentX - touchStartX;
-        let dy = currentY - touchStartY;
+        let currentX = e.touches[0].clientX; let currentY = e.touches[0].clientY;
+        let dx = currentX - touchStartX; let dy = currentY - touchStartY;
         
-        // 降低門檻至 20px，只要稍微滑動就轉向，大幅提升手感
         if (Math.abs(dx) > 20 || Math.abs(dy) > 20) {
             if (Math.abs(dx) > Math.abs(dy)) { setNextDirection(dx > 0 ? 1 : -1, 0); } 
             else { setNextDirection(0, dy > 0 ? 1 : -1); }
-            
-            // 轉向後重置圓心，允許玩家在手指不放開的情況下連續轉彎！
-            touchStartX = currentX;
-            touchStartY = currentY;
+            touchStartX = currentX; touchStartY = currentY;
         }
     }, {passive: false});
 
@@ -351,7 +355,6 @@ function bindMouseEvents() {
             let dx = e.changedTouches[0].clientX - touchStartX; let dy = e.changedTouches[0].clientY - touchStartY;
             if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); } 
         } else {
-            // 遊玩中點擊暫停按鈕
             let dx = e.changedTouches[0].clientX - touchStartX; let dy = e.changedTouches[0].clientY - touchStartY;
             if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }
         }
@@ -360,7 +363,6 @@ function bindMouseEvents() {
     canvas.addEventListener('touchcancel', () => window.mobileAccelerating = false);
 }
 
-// 全域鍵盤事件
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return; 
     if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
