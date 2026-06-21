@@ -1,4 +1,4 @@
-// app.js - AXP Vision Snake V4.3: Smart Mobile D-pad
+// app.js - AXP Vision Snake V5.1: Mobile Leaderboard & Touch Fixes
 
 // ==========================================
 // 🛡️ 網域防護與 Supabase 初始化
@@ -11,7 +11,7 @@ if (!allowedDomains.includes(window.location.hostname) && window.location.hostna
 
 const SUPABASE_URL = 'https://wvholwcyrldixlsgoege.supabase.co'; 
 // 👇 🚨 請在這裡貼上你的 anon_key
-const SUPABASE_ANON_KEY = '請在這裡貼上你的anon_key'; 
+const SUPABASE_ANON_KEY = 'sb_publishable_BozJ84tPQF-jBHGKtXKqgw_ELodM54e'; 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
@@ -19,12 +19,12 @@ const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ==========================================
 let canvas, ctx, container;
 const GAME_WIDTH = 600; 
-const GAME_HEIGHT = 800; // 總高 800
+const GAME_HEIGHT = 800; 
 
 const MATRIX_SIZE = 600; 
 const GRID_SIZE = 40; 
-const COLS = MATRIX_SIZE / GRID_SIZE; // 15 格
-const ROWS = MATRIX_SIZE / GRID_SIZE; // 15 格
+const COLS = MATRIX_SIZE / GRID_SIZE; 
+const ROWS = MATRIX_SIZE / GRID_SIZE; 
 
 const STATE = { START: 0, PLAYING: 1, PAUSED: 2, GAMEOVER: 3, LEADERBOARD: 4 };
 let gameState = STATE.START;
@@ -40,11 +40,7 @@ window.mobileAccelerating = false;
 // ==========================================
 // 🐍 遊戲實體 (Snake, Items, Particles)
 // ==========================================
-let snake = {
-    body: [], dx: 1, dy: 0, nextDx: 1, nextDy: 0,
-    wallTimer: 0, currentTickRate: 600 
-};
-
+let snake = { body: [], dx: 1, dy: 0, nextDx: 1, nextDy: 0, wallTimer: 0, currentTickRate: 600 };
 let items = []; let particles = []; let lastTickTime = 0;
 
 // ==========================================
@@ -61,55 +57,14 @@ function setupCanvas() {
     canvas.width = GAME_WIDTH; canvas.height = GAME_HEIGHT;
     canvas.style.display = 'block'; canvas.style.margin = '0 auto'; canvas.style.backgroundColor = '#ffffff';
     
-    createMobileDpad();
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 }
 
-// 🌟 新增：智慧判斷是否顯示虛擬按鍵
-function updateDpadVisibility() {
-    const dpad = document.getElementById('axp-dpad');
-    if (dpad) {
-        // 只有在手機版 (寬度<=768) 且 狀態為「遊玩中」或「暫停」時才顯示
-        if (window.innerWidth <= 768 && (gameState === STATE.PLAYING || gameState === STATE.PAUSED)) {
-            dpad.style.display = 'grid';
-        } else {
-            dpad.style.display = 'none';
-        }
-    }
-}
-
 function resizeCanvas() {
     if (!canvas) return;
-    const scale = Math.min(window.innerWidth / GAME_WIDTH, window.innerHeight / GAME_HEIGHT) * 0.95;
+    const scale = Math.min(window.innerWidth / GAME_WIDTH, window.innerHeight / GAME_HEIGHT);
     canvas.style.width = `${GAME_WIDTH * scale}px`; canvas.style.height = `${GAME_HEIGHT * scale}px`;
-    updateDpadVisibility(); // 🌟 調整視窗時也要檢查
-}
-
-function createMobileDpad() {
-    const dpad = document.createElement('div');
-    dpad.id = 'axp-dpad';
-    dpad.style.cssText = 'position:absolute; bottom:85px; left:50%; transform:translateX(-50%); display:none; grid-template-columns:55px 55px 55px; grid-template-rows:55px 55px 55px; gap:8px; z-index:50;';
-    
-    const btnStyle = 'background:rgba(255,255,255,0.95); border:2px solid #94a3b8; border-radius:12px; font-size:24px; color:#334155; display:flex; justify-content:center; align-items:center; user-select:none; touch-action:none; font-weight:bold; box-shadow: 0 4px 10px rgba(0,0,0,0.1);';
-    
-    dpad.innerHTML = `
-        <div></div><div id="btn-up" style="${btnStyle}">▲</div><div></div>
-        <div id="btn-left" style="${btnStyle}">◀</div><div id="btn-down" style="${btnStyle}">▼</div><div id="btn-right" style="${btnStyle}">▶</div>
-    `;
-    container.appendChild(dpad);
-
-    const bindDpad = (id, nx, ny) => {
-        const btn = document.getElementById(id);
-        const triggerStart = (e) => { e.preventDefault(); setNextDirection(nx, ny); window.mobileAccelerating = true; btn.style.backgroundColor = '#e2e8f0'; };
-        const triggerEnd = (e) => { e.preventDefault(); window.mobileAccelerating = false; btn.style.backgroundColor = 'rgba(255,255,255,0.95)'; };
-        
-        btn.addEventListener('touchstart', triggerStart); btn.addEventListener('touchend', triggerEnd);
-        btn.addEventListener('mousedown', triggerStart); btn.addEventListener('mouseup', triggerEnd);
-        btn.addEventListener('mouseleave', triggerEnd);
-    };
-    bindDpad('btn-up', 0, -1); bindDpad('btn-down', 0, 1);
-    bindDpad('btn-left', -1, 0); bindDpad('btn-right', 1, 0);
 }
 
 // ==========================================
@@ -307,7 +262,8 @@ function drawGameState() {
 
         ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(70, 280, 460, 160, 12); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#334155'; ctx.font = '18px Arial'; ctx.fillText('🍎 經典紅蘋果：激活周邊視野與平滑追視', GAME_WIDTH / 2, 330); ctx.fillText('💣 避開炸彈、⚡ 加速、🐢 減速：Go/No-Go 抑制', GAME_WIDTH / 2, 380);
-        ctx.fillStyle = '#d97706'; ctx.font = 'bold 16px Arial'; ctx.fillText('💡 長按方向鍵可啟動「衝刺模式」', GAME_WIDTH / 2, 420);
+        
+        ctx.fillStyle = '#d97706'; ctx.font = 'bold 16px Arial'; ctx.fillText('💡 螢幕長按 (或長按方向鍵) 可啟動衝刺', GAME_WIDTH / 2, 420);
 
         ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.roundRect(150, 500, 300, 60, 8); ctx.fill();
         ctx.fillStyle = '#ffffff'; ctx.font = 'bold 24px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('啟 動', 300, 530); ctx.textBaseline = 'alphabetic'; 
@@ -334,52 +290,84 @@ function drawGameState() {
 }
 
 // ==========================================
-// 控制與事件監聽
+// 🌟 手機觸控與按鈕統一處理中心
 // ==========================================
+function handleUIClick(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect(); 
+    const mx = (clientX - rect.left) * (GAME_WIDTH / rect.width); 
+    const my = (clientY - rect.top) * (GAME_HEIGHT / rect.height);
+    
+    // OKN 按鈕 (擴大判定區)
+    if (mx > 10 && mx < 130 && my > MATRIX_SIZE + 10 && my < MATRIX_SIZE + 75) { isOknMoving = !isOknMoving; return; }
+    if (mx > 470 && mx < 590 && my > MATRIX_SIZE + 10 && my < MATRIX_SIZE + 75) { oknDirection *= -1; return; }
+    
+    // 返回按鈕
+    if (gameState === STATE.LEADERBOARD && mx > 150 && mx < 450 && my > 680 && my < 770) { gameState = STATE.START; return; }
+    
+    // 啟動按鈕
+    if (gameState === STATE.START && mx > 120 && mx < 480 && my > 480 && my < 580) { 
+        startGame(); 
+        if (container.requestFullscreen) { container.requestFullscreen().catch(e=>{}); } 
+        else if (container.webkitRequestFullscreen) { container.webkitRequestFullscreen(); }
+    }
+}
+
+function bindMouseEvents() {
+    canvas.addEventListener('mousedown', (e) => { handleUIClick(e.clientX, e.clientY); });
+}
+
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return; 
     if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
     keys[e.code] = true;
-    if (e.code === 'Space') { if (gameState === STATE.PLAYING) gameState = STATE.PAUSED; else if (gameState === STATE.PAUSED) gameState = STATE.PLAYING; updateDpadVisibility(); } // 🌟 暫停時也要更新按鍵顯示
+    if (e.code === 'Space') { if (gameState === STATE.PLAYING) gameState = STATE.PAUSED; else if (gameState === STATE.PAUSED) gameState = STATE.PLAYING; }
     else if (e.code === 'ArrowUp') setNextDirection(0, -1);
     else if (e.code === 'ArrowDown') setNextDirection(0, 1);
     else if (e.code === 'ArrowLeft') setNextDirection(-1, 0);
     else if (e.code === 'ArrowRight') setNextDirection(1, 0);
-    else if (e.code === 'Enter') { if (gameState === STATE.START) startGame(); else if (gameState === STATE.LEADERBOARD) { gameState = STATE.START; updateDpadVisibility(); } }
+    else if (e.code === 'Enter') { if (gameState === STATE.START) startGame(); else if (gameState === STATE.LEADERBOARD) { gameState = STATE.START; } }
 }, { passive: false });
 
 window.addEventListener('keyup', (e) => keys[e.code] = false);
 
 let touchStartX = 0; let touchStartY = 0;
-window.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; }, {passive: false});
-window.addEventListener('touchend', e => {
-    if (gameState !== STATE.PLAYING) return;
-    let dx = e.changedTouches[0].screenX - touchStartX; let dy = e.changedTouches[0].screenY - touchStartY;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) { setNextDirection(dx > 0 ? 1 : -1, 0); }
-    else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) { setNextDirection(0, dy > 0 ? 1 : -1); }
+window.addEventListener('touchstart', e => { 
+    // 🌟 防止阻擋輸入框
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    touchStartX = e.changedTouches[0].screenX; 
+    touchStartY = e.changedTouches[0].screenY; 
+    if (gameState === STATE.PLAYING) window.mobileAccelerating = true;
 }, {passive: false});
 
-function bindMouseEvents() {
-    canvas.addEventListener('mousedown', (e) => {
-        const rect = canvas.getBoundingClientRect(); const mx = (e.clientX - rect.left) * (GAME_WIDTH / rect.width); const my = (e.clientY - rect.top) * (GAME_HEIGHT / rect.height);
-        if (mx > 20 && mx < 115 && my > MATRIX_SIZE + 25 && my < MATRIX_SIZE + 63) { isOknMoving = !isOknMoving; return; }
-        if (mx > 485 && mx < 580 && my > MATRIX_SIZE + 25 && my < MATRIX_SIZE + 63) { oknDirection *= -1; return; }
-        if (gameState === STATE.LEADERBOARD && mx > 180 && mx < 420 && my > 700 && my < 750) { gameState = STATE.START; updateDpadVisibility(); return; } // 🌟 回到首頁時隱藏
-        if (gameState === STATE.START && mx > 150 && mx < 450 && my > 500 && my < 560) { startGame(); }
-    });
-}
+window.addEventListener('touchend', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON') return;
+    window.mobileAccelerating = false;
+    
+    let dx = e.changedTouches[0].screenX - touchStartX; let dy = e.changedTouches[0].screenY - touchStartY;
+    
+    if (gameState === STATE.PLAYING) {
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) { setNextDirection(dx > 0 ? 1 : -1, 0); }
+        else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) { setNextDirection(0, dy > 0 ? 1 : -1); }
+    } else {
+        // 🌟 手機專屬 Tap (輕觸) 偵測：解決按鈕沒反應的問題
+        if (Math.abs(dx) < 15 && Math.abs(dy) < 15) {
+            handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        }
+    }
+}, {passive: false});
+
+window.addEventListener('touchcancel', () => window.mobileAccelerating = false);
 
 // ==========================================
 // 雲端儲存與生命週期
 // ==========================================
 function triggerGameOver() {
     gameState = STATE.GAMEOVER;
-    updateDpadVisibility(); // 🌟 死亡時隱藏方向鍵
     setTimeout(async () => {
         await fetchLeaderboardData();
         let lowestScore = globalLeaderboardData.length === 10 ? globalLeaderboardData[9].score : 0;
         if (globalLeaderboardData.length < 10 || score > lowestScore) { showNameInputModal(); } 
-        else { gameState = STATE.LEADERBOARD; updateDpadVisibility(); }
+        else { gameState = STATE.LEADERBOARD; }
     }, 1500);
 }
 
@@ -391,8 +379,8 @@ function showNameInputModal() {
         modal.innerHTML = `
             <h3 style="margin:0 0 10px 0; color:#0ea5e9; font-size:24px;">🎉 破紀錄啦！</h3>
             <p style="color:#64748b; margin-bottom:15px; font-size:14px;">請輸入你的名字：</p>
-            <input type="text" id="axp-agent-name" value="特工" maxlength="8" style="width:80%; padding:12px; font-size:18px; border:2px solid #cbd5e1; border-radius:6px; margin-bottom:20px; text-align:center; outline:none; font-weight:bold; color:#1e293b; background:#f8fafc;">
-            <button id="axp-submit-score" style="background:#2980b9; color:white; border:none; padding:12px 25px; font-size:18px; border-radius:6px; cursor:pointer; font-weight:bold; width:100%;">送出成績</button>`;
+            <input type="text" id="axp-agent-name" value="特工" maxlength="8" style="width:80%; padding:12px; font-size:18px; border:2px solid #cbd5e1; border-radius:6px; margin-bottom:20px; text-align:center; outline:none; font-weight:bold; color:#1e293b; background:#f8fafc; user-select:auto; -webkit-user-select:auto;">
+            <button id="axp-submit-score" style="background:#2980b9; color:white; border:none; padding:12px 25px; font-size:18px; border-radius:6px; cursor:pointer; font-weight:bold; width:100%; user-select:auto; -webkit-user-select:auto;">送出成績</button>`;
         container.appendChild(modal);
         
         document.getElementById('axp-agent-name').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('axp-submit-score').click(); } });
@@ -403,7 +391,7 @@ function showNameInputModal() {
             try {
                 const { error } = await supabaseClient.from('snake_leaderboard').insert([{ name: name, score: score, date: dateStr }]);
                 if (error) throw error; 
-                await fetchLeaderboardData(); modal.remove(); gameState = STATE.LEADERBOARD; updateDpadVisibility();
+                await fetchLeaderboardData(); modal.remove(); gameState = STATE.LEADERBOARD;
             } catch (err) { alert("上傳失敗：" + err.message); btn.innerText = '重新送出'; btn.disabled = false; }
         });
     }
@@ -422,7 +410,6 @@ function startGame() {
     snake.wallTimer = 0; snake.currentTickRate = 600; 
     score = 0; items = []; particles = []; deathReason = "";
     spawnItem('fruit'); gameState = STATE.PLAYING; lastTickTime = performance.now();
-    updateDpadVisibility(); // 🌟 遊戲開始時，叫出方向鍵
 }
 
 function gameLoop(timestamp) {
