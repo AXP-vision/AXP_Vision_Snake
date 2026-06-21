@@ -1,4 +1,4 @@
-// app.js - AXP Vision Snake V4.2: Text Update
+// app.js - AXP Vision Snake V4.3: Smart Mobile D-pad
 
 // ==========================================
 // 🛡️ 網域防護與 Supabase 初始化
@@ -11,7 +11,7 @@ if (!allowedDomains.includes(window.location.hostname) && window.location.hostna
 
 const SUPABASE_URL = 'https://wvholwcyrldixlsgoege.supabase.co'; 
 // 👇 🚨 請在這裡貼上你的 anon_key
-const SUPABASE_ANON_KEY = 'sb_publishable_BozJ84tPQF-jBHGKtXKqgw_ELodM54e'; 
+const SUPABASE_ANON_KEY = '請在這裡貼上你的anon_key'; 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
@@ -21,7 +21,6 @@ let canvas, ctx, container;
 const GAME_WIDTH = 600; 
 const GAME_HEIGHT = 800; // 總高 800
 
-// 遊戲矩陣為 600x600 正方形
 const MATRIX_SIZE = 600; 
 const GRID_SIZE = 40; 
 const COLS = MATRIX_SIZE / GRID_SIZE; // 15 格
@@ -34,9 +33,7 @@ let globalLeaderboardData = [];
 let score = 0;
 let deathReason = "";
 
-// 視覺訓練 OKN 背景
 let isOknMoving = false; let oknDirection = 1; let oknSpeedLevel = 1; let currentOknOffset = 0;
-
 let keys = {};
 window.mobileAccelerating = false;
 
@@ -48,9 +45,7 @@ let snake = {
     wallTimer: 0, currentTickRate: 600 
 };
 
-let items = [];
-let particles = [];
-let lastTickTime = 0;
+let items = []; let particles = []; let lastTickTime = 0;
 
 // ==========================================
 // 🎮 初始化與畫布設定
@@ -71,21 +66,32 @@ function setupCanvas() {
     resizeCanvas();
 }
 
+// 🌟 新增：智慧判斷是否顯示虛擬按鍵
+function updateDpadVisibility() {
+    const dpad = document.getElementById('axp-dpad');
+    if (dpad) {
+        // 只有在手機版 (寬度<=768) 且 狀態為「遊玩中」或「暫停」時才顯示
+        if (window.innerWidth <= 768 && (gameState === STATE.PLAYING || gameState === STATE.PAUSED)) {
+            dpad.style.display = 'grid';
+        } else {
+            dpad.style.display = 'none';
+        }
+    }
+}
+
 function resizeCanvas() {
     if (!canvas) return;
     const scale = Math.min(window.innerWidth / GAME_WIDTH, window.innerHeight / GAME_HEIGHT) * 0.95;
     canvas.style.width = `${GAME_WIDTH * scale}px`; canvas.style.height = `${GAME_HEIGHT * scale}px`;
-    
-    const dpad = document.getElementById('axp-dpad');
-    if (dpad) { dpad.style.display = window.innerWidth <= 768 ? 'grid' : 'none'; }
+    updateDpadVisibility(); // 🌟 調整視窗時也要檢查
 }
 
 function createMobileDpad() {
     const dpad = document.createElement('div');
     dpad.id = 'axp-dpad';
-    dpad.style.cssText = 'position:absolute; bottom:75px; left:50%; transform:translateX(-50%); display:none; grid-template-columns:50px 50px 50px; grid-template-rows:50px 50px 50px; gap:8px; z-index:50;';
+    dpad.style.cssText = 'position:absolute; bottom:85px; left:50%; transform:translateX(-50%); display:none; grid-template-columns:55px 55px 55px; grid-template-rows:55px 55px 55px; gap:8px; z-index:50;';
     
-    const btnStyle = 'background:rgba(255,255,255,0.9); border:2px solid #cbd5e1; border-radius:10px; font-size:20px; color:#475569; display:flex; justify-content:center; align-items:center; user-select:none; touch-action:none; font-weight:bold; box-shadow: 0 4px 6px rgba(0,0,0,0.05);';
+    const btnStyle = 'background:rgba(255,255,255,0.95); border:2px solid #94a3b8; border-radius:12px; font-size:24px; color:#334155; display:flex; justify-content:center; align-items:center; user-select:none; touch-action:none; font-weight:bold; box-shadow: 0 4px 10px rgba(0,0,0,0.1);';
     
     dpad.innerHTML = `
         <div></div><div id="btn-up" style="${btnStyle}">▲</div><div></div>
@@ -95,8 +101,8 @@ function createMobileDpad() {
 
     const bindDpad = (id, nx, ny) => {
         const btn = document.getElementById(id);
-        const triggerStart = (e) => { e.preventDefault(); setNextDirection(nx, ny); window.mobileAccelerating = true; };
-        const triggerEnd = (e) => { e.preventDefault(); window.mobileAccelerating = false; };
+        const triggerStart = (e) => { e.preventDefault(); setNextDirection(nx, ny); window.mobileAccelerating = true; btn.style.backgroundColor = '#e2e8f0'; };
+        const triggerEnd = (e) => { e.preventDefault(); window.mobileAccelerating = false; btn.style.backgroundColor = 'rgba(255,255,255,0.95)'; };
         
         btn.addEventListener('touchstart', triggerStart); btn.addEventListener('touchend', triggerEnd);
         btn.addEventListener('mousedown', triggerStart); btn.addEventListener('mouseup', triggerEnd);
@@ -121,32 +127,22 @@ function spawnItem(typeStr) {
     if (emptyCells.length === 0) return;
     let pos = emptyCells[Math.floor(Math.random() * emptyCells.length)];
     
-    if (typeStr === 'speed') {
-        items.push({ x: pos.x, y: pos.y, type: 'speed', emoji: '⚡', spawnTime: Date.now() });
-    } else if (typeStr === 'slow') {
-        items.push({ x: pos.x, y: pos.y, type: 'slow', emoji: '🐢', spawnTime: Date.now() });
-    } else if (typeStr === 'bomb') {
-        items.push({ x: pos.x, y: pos.y, type: 'bomb', emoji: '💣', spawnTime: Date.now() });
-    } else {
-        items.push({ x: pos.x, y: pos.y, type: 'fruit', emoji: '🍎', score: 10, spawnTime: Date.now() });
-    }
+    if (typeStr === 'speed') items.push({ x: pos.x, y: pos.y, type: 'speed', emoji: '⚡', spawnTime: Date.now() });
+    else if (typeStr === 'slow') items.push({ x: pos.x, y: pos.y, type: 'slow', emoji: '🐢', spawnTime: Date.now() });
+    else if (typeStr === 'bomb') items.push({ x: pos.x, y: pos.y, type: 'bomb', emoji: '💣', spawnTime: Date.now() });
+    else items.push({ x: pos.x, y: pos.y, type: 'fruit', emoji: '🍎', score: 10, spawnTime: Date.now() });
 }
 
 function createParticles(x, y, type) {
     const px = x * GRID_SIZE + GRID_SIZE/2; const py = y * GRID_SIZE + GRID_SIZE/2;
     const count = type === 'bomb' ? 30 : 15;
     for (let i = 0; i < count; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const speed = Math.random() * (type === 'bomb' ? 8 : 4);
+        const angle = Math.random() * Math.PI * 2; const speed = Math.random() * (type === 'bomb' ? 8 : 4);
         let color = '#ef4444'; 
         if (type === 'bomb') color = Math.random() > 0.5 ? '#dc2626' : '#fbbf24';
         else if (type === 'speed') color = '#fbbf24';
         else if (type === 'slow') color = '#34d399';
-        
-        particles.push({
-            x: px, y: py, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-            color: color, life: 1.0, decay: Math.random() * 0.05 + 0.02, size: Math.random() * 6 + 2
-        });
+        particles.push({ x: px, y: py, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, color: color, life: 1.0, decay: Math.random() * 0.05 + 0.02, size: Math.random() * 6 + 2 });
     }
 }
 
@@ -171,35 +167,28 @@ function updateGame(timestamp) {
     if (gameState !== STATE.PLAYING) return;
 
     for (let i = items.length - 1; i >= 0; i--) {
-        if (items[i].type !== 'fruit' && Date.now() - items[i].spawnTime > 15000) { items.splice(i, 1); }
+        if (items[i].type !== 'fruit' && Date.now() - items[i].spawnTime > 15000) items.splice(i, 1);
     }
 
     let isSpeedingUp = keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'] || window.mobileAccelerating;
     let actualTickRate = isSpeedingUp ? Math.max(80, snake.currentTickRate / 2.5) : snake.currentTickRate;
 
     if (timestamp - lastTickTime > actualTickRate) {
-        let head = snake.body[0];
-        let nextX = head.x + snake.nextDx; let nextY = head.y + snake.nextDy;
+        let head = snake.body[0]; let nextX = head.x + snake.nextDx; let nextY = head.y + snake.nextDy;
 
         if (nextX < 0 || nextX >= COLS || nextY < 0 || nextY >= ROWS) {
             snake.wallTimer += actualTickRate;
-            if (snake.wallTimer >= 1000) {
-                deathReason = "撞牆發呆？系統判定神經連結中斷。";
-                triggerGameOver();
-            }
+            if (snake.wallTimer >= 1000) { deathReason = "撞牆發呆？系統判定神經連結中斷。"; triggerGameOver(); }
             return;
         } else { snake.wallTimer = 0; }
 
         for (let i = 0; i < snake.body.length; i++) {
             if (nextX === snake.body[i].x && nextY === snake.body[i].y) {
-                // 🌟 修正：改成指定的白話文台詞
-                deathReason = "撞到自己的身體而亡";
-                triggerGameOver(); return;
+                deathReason = "撞到自己的身體而亡"; triggerGameOver(); return;
             }
         }
 
-        snake.dx = snake.nextDx; snake.dy = snake.nextDy;
-        snake.body.unshift({ x: nextX, y: nextY });
+        snake.dx = snake.nextDx; snake.dy = snake.nextDy; snake.body.unshift({ x: nextX, y: nextY });
 
         let ateFruit = false;
         for (let i = items.length - 1; i >= 0; i--) {
@@ -208,29 +197,18 @@ function updateGame(timestamp) {
                 if (item.type === 'fruit') {
                     score += item.score; ateFruit = true; createParticles(nextX, nextY, 'fruit');
                     items.splice(i, 1); spawnItem('fruit'); 
-                    
                     let rand = Math.random();
-                    if (rand < 0.15) spawnItem('bomb');
-                    else if (rand >= 0.15 && rand < 0.25) spawnItem('speed');
-                    else if (rand >= 0.25 && rand < 0.35) spawnItem('slow');
-
+                    if (rand < 0.15) spawnItem('bomb'); else if (rand >= 0.15 && rand < 0.25) spawnItem('speed'); else if (rand >= 0.25 && rand < 0.35) spawnItem('slow');
                 } else if (item.type === 'bomb') {
                     createParticles(nextX, nextY, 'bomb'); items.splice(i, 1);
-                    if (snake.body.length <= 2) {
-                        deathReason = "單一節點引爆！邏輯抑制失敗。";
-                        triggerGameOver(); return;
-                    } else {
-                        score = Math.max(0, score - 30);
-                        snake.body.pop(); snake.body.pop(); ateFruit = true; 
-                    }
+                    if (snake.body.length <= 2) { deathReason = "單一節點引爆！邏輯抑制失敗。"; triggerGameOver(); return; } 
+                    else { score = Math.max(0, score - 30); snake.body.pop(); snake.body.pop(); ateFruit = true; }
                 } else if (item.type === 'speed') {
                     createParticles(nextX, nextY, 'speed'); items.splice(i, 1);
-                    snake.currentTickRate = Math.max(150, Math.floor(snake.currentTickRate * 0.8));
-                    ateFruit = true; snake.body.pop();
+                    snake.currentTickRate = Math.max(150, Math.floor(snake.currentTickRate * 0.8)); ateFruit = true; snake.body.pop();
                 } else if (item.type === 'slow') {
                     createParticles(nextX, nextY, 'slow'); items.splice(i, 1);
-                    snake.currentTickRate = Math.min(1000, snake.currentTickRate + 150);
-                    ateFruit = true; snake.body.pop();
+                    snake.currentTickRate = Math.min(1000, snake.currentTickRate + 150); ateFruit = true; snake.body.pop();
                 }
             }
         }
@@ -245,13 +223,11 @@ function updateGame(timestamp) {
 function drawEverything() {
     ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, GAME_WIDTH, MATRIX_SIZE);
     
-    ctx.save();
-    ctx.beginPath(); ctx.rect(0, 0, GAME_WIDTH, MATRIX_SIZE); ctx.clip();
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, GAME_WIDTH, MATRIX_SIZE); ctx.clip();
     
     if (isOknMoving && gameState === STATE.PLAYING) {
         currentOknOffset += (oknSpeedLevel * 1.0) * oknDirection;
-        if (currentOknOffset >= 80) currentOknOffset -= 80;
-        if (currentOknOffset <= -80) currentOknOffset += 80;
+        if (currentOknOffset >= 80) currentOknOffset -= 80; if (currentOknOffset <= -80) currentOknOffset += 80;
         ctx.fillStyle = '#e2e8f0'; 
         for (let i = -80; i < GAME_WIDTH + 80; i += 80) { ctx.fillRect(i + currentOknOffset, 0, 40, MATRIX_SIZE); }
     } else {
@@ -288,10 +264,7 @@ function drawEverything() {
         }
     });
 
-    particles.forEach(p => {
-        ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
-    });
-    ctx.globalAlpha = 1.0;
+    particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill(); }); ctx.globalAlpha = 1.0;
 
     drawHUDPanel(); drawGameState(); drawOknButton();
 }
@@ -305,65 +278,39 @@ function drawHUDPanel() {
     let isSpeedingUp = keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'] || window.mobileAccelerating;
     
     if (isSpeedingUp) {
-        ctx.fillStyle = '#ef4444'; ctx.font = 'bold 16px Arial';
-        ctx.fillText(`⚡ 衝刺模式啟動中...`, GAME_WIDTH / 2, MATRIX_SIZE + 85);
+        ctx.fillStyle = '#ef4444'; ctx.font = 'bold 16px Arial'; ctx.fillText(`⚡ 衝刺模式啟動中...`, GAME_WIDTH / 2, MATRIX_SIZE + 85);
     } else {
         let speedLevel = (600 / snake.currentTickRate).toFixed(1);
-        ctx.fillStyle = '#64748b'; ctx.font = 'bold 16px Arial';
-        ctx.fillText(`當前基準速度: x${speedLevel}`, GAME_WIDTH / 2, MATRIX_SIZE + 85);
+        ctx.fillStyle = '#64748b'; ctx.font = 'bold 16px Arial'; ctx.fillText(`當前基準速度: x${speedLevel}`, GAME_WIDTH / 2, MATRIX_SIZE + 85);
     }
 }
 
 function drawOknButton() {
     ctx.save();
-    
-    ctx.fillStyle = isOknMoving ? '#dcfce7' : '#e2e8f0'; 
-    ctx.strokeStyle = isOknMoving ? '#10b981' : '#cbd5e1'; 
-    ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(20, MATRIX_SIZE + 25, 95, 38, 8); ctx.fill(); ctx.stroke();
-    
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = isOknMoving ? '#10b981' : '#64748b'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; 
-    ctx.fillText(isOknMoving ? 'OKN: ON' : 'OKN: OFF', 67, MATRIX_SIZE + 44);
+    ctx.fillStyle = isOknMoving ? '#dcfce7' : '#e2e8f0'; ctx.strokeStyle = isOknMoving ? '#10b981' : '#cbd5e1'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(20, MATRIX_SIZE + 25, 95, 38, 8); ctx.fill(); ctx.stroke();
+    ctx.textBaseline = 'middle'; ctx.fillStyle = isOknMoving ? '#10b981' : '#64748b'; ctx.font = 'bold 13px Arial'; ctx.textAlign = 'center'; ctx.fillText(isOknMoving ? 'OKN: ON' : 'OKN: OFF', 67, MATRIX_SIZE + 44);
 
-    ctx.fillStyle = '#e0f2fe'; ctx.strokeStyle = '#7dd3fc';
-    ctx.beginPath(); ctx.roundRect(485, MATRIX_SIZE + 25, 95, 38, 8); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#e0f2fe'; ctx.strokeStyle = '#7dd3fc'; ctx.beginPath(); ctx.roundRect(485, MATRIX_SIZE + 25, 95, 38, 8); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#0284c7'; ctx.fillText(oknDirection === 1 ? '➡ 向右' : '⬅ 向左', 532, MATRIX_SIZE + 44);
-    
     ctx.restore();
 }
 
 function drawGameState() {
     if (gameState === STATE.START) {
         ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
         ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 1;
         for(let i=0; i<GAME_WIDTH; i+=30) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,GAME_HEIGHT); ctx.stroke(); }
         for(let i=0; i<GAME_HEIGHT; i+=30) { ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(GAME_WIDTH,i); ctx.stroke(); }
 
-        ctx.fillStyle = '#1e293b'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-        ctx.font = 'bold 56px Arial'; 
-        ctx.fillText('經典貪食蛇', GAME_WIDTH / 2, 170);
+        ctx.fillStyle = '#1e293b'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.font = 'bold 56px Arial'; ctx.fillText('經典貪食蛇', GAME_WIDTH / 2, 170);
+        ctx.fillStyle = '#64748b'; ctx.font = 'bold 24px "Orbitron", sans-serif'; ctx.fillText('AXP Vision Snake', GAME_WIDTH / 2, 220);
 
-        ctx.fillStyle = '#64748b'; ctx.font = 'bold 24px "Orbitron", sans-serif'; 
-        ctx.fillText('AXP Vision Snake', GAME_WIDTH / 2, 220);
+        ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2; ctx.beginPath(); ctx.roundRect(70, 280, 460, 160, 12); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#334155'; ctx.font = '18px Arial'; ctx.fillText('🍎 經典紅蘋果：激活周邊視野與平滑追視', GAME_WIDTH / 2, 330); ctx.fillText('💣 避開炸彈、⚡ 加速、🐢 減速：Go/No-Go 抑制', GAME_WIDTH / 2, 380);
+        ctx.fillStyle = '#d97706'; ctx.font = 'bold 16px Arial'; ctx.fillText('💡 長按方向鍵可啟動「衝刺模式」', GAME_WIDTH / 2, 420);
 
-        ctx.fillStyle = '#f8fafc'; ctx.strokeStyle = '#cbd5e1'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.roundRect(70, 280, 460, 160, 12); ctx.fill(); ctx.stroke();
-
-        ctx.fillStyle = '#334155'; ctx.font = '18px Arial';
-        ctx.fillText('🍎 經典紅蘋果：激活周邊視野與平滑追視', GAME_WIDTH / 2, 330);
-        ctx.fillText('💣 避開炸彈、⚡ 加速、🐢 減速：Go/No-Go 抑制', GAME_WIDTH / 2, 380);
-        
-        ctx.fillStyle = '#d97706'; ctx.font = 'bold 16px Arial';
-        ctx.fillText('💡 長按方向鍵可啟動「衝刺模式」', GAME_WIDTH / 2, 420);
-
-        ctx.fillStyle = '#2980b9'; 
-        ctx.beginPath(); ctx.roundRect(150, 500, 300, 60, 8); ctx.fill();
-
-        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 24px Arial'; 
-        ctx.textBaseline = 'middle'; 
-        ctx.fillText('啟 動', 300, 530); 
-        ctx.textBaseline = 'alphabetic'; 
+        ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.roundRect(150, 500, 300, 60, 8); ctx.fill();
+        ctx.fillStyle = '#ffffff'; ctx.font = 'bold 24px Arial'; ctx.textBaseline = 'middle'; ctx.fillText('啟 動', 300, 530); ctx.textBaseline = 'alphabetic'; 
     }
     else if (gameState === STATE.PAUSED) {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.7)'; ctx.fillRect(0, 0, GAME_WIDTH, MATRIX_SIZE); 
@@ -378,11 +325,9 @@ function drawGameState() {
         ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT); 
         ctx.fillStyle = '#0284c7'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.font = 'bold 40px Arial'; ctx.fillText('🏆 全球排行榜', GAME_WIDTH / 2, 80);
         ctx.fillStyle = '#64748b'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'left'; ctx.fillText('排名', 60, 140); ctx.fillText('代號', 130, 140); ctx.fillText('分數', 320, 140); ctx.fillText('時間', 420, 140); ctx.strokeStyle = '#cbd5e1'; ctx.beginPath(); ctx.moveTo(50, 150); ctx.lineTo(550, 150); ctx.stroke(); 
-        
         globalLeaderboardData.forEach((entry, i) => { 
             const y = 190 + i * 40; ctx.fillStyle = i < 3 ? '#d97706' : '#94a3b8'; ctx.fillText(`# ${i+1}`, 60, y); ctx.fillStyle = '#1e293b'; ctx.fillText(entry.name.substring(0,8), 130, y); ctx.fillStyle = '#ef4444'; ctx.fillText(`${entry.score} 分`, 320, y); ctx.fillStyle = '#94a3b8'; ctx.font = '14px Arial'; ctx.fillText(entry.date, 420, y); ctx.font = '18px Arial'; 
         });
-        
         ctx.fillStyle = '#2980b9'; ctx.beginPath(); ctx.roundRect(GAME_WIDTH/2 - 120, 700, 240, 50, 8); ctx.fill(); 
         ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = 'bold 20px Arial'; ctx.fillText('返回', GAME_WIDTH/2, 725); ctx.textBaseline = 'alphabetic';
     }
@@ -395,16 +340,12 @@ window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return; 
     if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
     keys[e.code] = true;
-    
-    if (e.code === 'Space') { if (gameState === STATE.PLAYING) gameState = STATE.PAUSED; else if (gameState === STATE.PAUSED) gameState = STATE.PLAYING; }
+    if (e.code === 'Space') { if (gameState === STATE.PLAYING) gameState = STATE.PAUSED; else if (gameState === STATE.PAUSED) gameState = STATE.PLAYING; updateDpadVisibility(); } // 🌟 暫停時也要更新按鍵顯示
     else if (e.code === 'ArrowUp') setNextDirection(0, -1);
     else if (e.code === 'ArrowDown') setNextDirection(0, 1);
     else if (e.code === 'ArrowLeft') setNextDirection(-1, 0);
     else if (e.code === 'ArrowRight') setNextDirection(1, 0);
-    else if (e.code === 'Enter') {
-        if (gameState === STATE.START) startGame(); 
-        else if (gameState === STATE.LEADERBOARD) { gameState = STATE.START; }
-    }
+    else if (e.code === 'Enter') { if (gameState === STATE.START) startGame(); else if (gameState === STATE.LEADERBOARD) { gameState = STATE.START; updateDpadVisibility(); } }
 }, { passive: false });
 
 window.addEventListener('keyup', (e) => keys[e.code] = false);
@@ -421,11 +362,9 @@ window.addEventListener('touchend', e => {
 function bindMouseEvents() {
     canvas.addEventListener('mousedown', (e) => {
         const rect = canvas.getBoundingClientRect(); const mx = (e.clientX - rect.left) * (GAME_WIDTH / rect.width); const my = (e.clientY - rect.top) * (GAME_HEIGHT / rect.height);
-        
         if (mx > 20 && mx < 115 && my > MATRIX_SIZE + 25 && my < MATRIX_SIZE + 63) { isOknMoving = !isOknMoving; return; }
         if (mx > 485 && mx < 580 && my > MATRIX_SIZE + 25 && my < MATRIX_SIZE + 63) { oknDirection *= -1; return; }
-        
-        if (gameState === STATE.LEADERBOARD && mx > 180 && mx < 420 && my > 700 && my < 750) { gameState = STATE.START; return; }
+        if (gameState === STATE.LEADERBOARD && mx > 180 && mx < 420 && my > 700 && my < 750) { gameState = STATE.START; updateDpadVisibility(); return; } // 🌟 回到首頁時隱藏
         if (gameState === STATE.START && mx > 150 && mx < 450 && my > 500 && my < 560) { startGame(); }
     });
 }
@@ -435,11 +374,12 @@ function bindMouseEvents() {
 // ==========================================
 function triggerGameOver() {
     gameState = STATE.GAMEOVER;
+    updateDpadVisibility(); // 🌟 死亡時隱藏方向鍵
     setTimeout(async () => {
         await fetchLeaderboardData();
         let lowestScore = globalLeaderboardData.length === 10 ? globalLeaderboardData[9].score : 0;
         if (globalLeaderboardData.length < 10 || score > lowestScore) { showNameInputModal(); } 
-        else { gameState = STATE.LEADERBOARD; }
+        else { gameState = STATE.LEADERBOARD; updateDpadVisibility(); }
     }, 1500);
 }
 
@@ -463,7 +403,7 @@ function showNameInputModal() {
             try {
                 const { error } = await supabaseClient.from('snake_leaderboard').insert([{ name: name, score: score, date: dateStr }]);
                 if (error) throw error; 
-                await fetchLeaderboardData(); modal.remove(); gameState = STATE.LEADERBOARD;
+                await fetchLeaderboardData(); modal.remove(); gameState = STATE.LEADERBOARD; updateDpadVisibility();
             } catch (err) { alert("上傳失敗：" + err.message); btn.innerText = '重新送出'; btn.disabled = false; }
         });
     }
@@ -482,6 +422,7 @@ function startGame() {
     snake.wallTimer = 0; snake.currentTickRate = 600; 
     score = 0; items = []; particles = []; deathReason = "";
     spawnItem('fruit'); gameState = STATE.PLAYING; lastTickTime = performance.now();
+    updateDpadVisibility(); // 🌟 遊戲開始時，叫出方向鍵
 }
 
 function gameLoop(timestamp) {
