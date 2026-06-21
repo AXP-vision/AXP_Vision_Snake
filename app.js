@@ -1,4 +1,4 @@
-// app.js - AXP Vision Snake V6.0: Smart Platform & Auto-Fullscreen
+// app.js - AXP Vision Snake V6.1: Fatal Crash Fix & Stable Engine
 
 // ==========================================
 // 🛡️ 網域防護與 Supabase 初始化
@@ -36,7 +36,6 @@ let isOknMoving = false; let oknDirection = 1; let oknSpeedLevel = 1; let curren
 let keys = {};
 window.mobileAccelerating = false;
 
-// 🌟 新增：裝置偵測 (判斷是否為手機/觸控螢幕)
 const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window);
 
 // ==========================================
@@ -69,7 +68,6 @@ function resizeCanvas() {
     canvas.style.width = `${GAME_WIDTH * scale}px`; canvas.style.height = `${GAME_HEIGHT * scale}px`;
 }
 
-// 🌟 全螢幕引擎
 function enterFullscreen() {
     if (!isMobile) return; 
     const elem = document.documentElement; 
@@ -229,11 +227,9 @@ function drawEverything() {
 function drawHUDPanel() {
     if (gameState === STATE.START) return;
     
-    // 分數
     ctx.fillStyle = '#f59e0b'; ctx.font = 'bold 28px "Orbitron", monospace'; ctx.textAlign = 'center';
     ctx.fillText(`SCORE: ${score}`, GAME_WIDTH / 2, MATRIX_SIZE + 45);
     
-    // 速度與衝刺狀態
     let isSpeedingUp = keys['ArrowUp'] || keys['ArrowDown'] || keys['ArrowLeft'] || keys['ArrowRight'] || window.mobileAccelerating;
     if (isSpeedingUp) {
         ctx.fillStyle = '#ef4444'; ctx.font = 'bold 16px Arial'; ctx.fillText(`⚡ 衝刺模式啟動中...`, GAME_WIDTH / 2, MATRIX_SIZE + 85);
@@ -242,7 +238,6 @@ function drawHUDPanel() {
         ctx.fillStyle = '#64748b'; ctx.font = 'bold 16px Arial'; ctx.fillText(`當前基準速度: x${speedLevel}`, GAME_WIDTH / 2, MATRIX_SIZE + 85);
     }
 
-    // 🌟 新增：實體暫停按鈕
     ctx.fillStyle = gameState === STATE.PAUSED ? '#ef4444' : '#334155';
     ctx.beginPath(); ctx.roundRect(240, 720, 120, 45, 8); ctx.fill();
     ctx.fillStyle = '#ffffff'; ctx.font = 'bold 18px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -301,7 +296,7 @@ function drawGameState() {
 }
 
 // ==========================================
-// 🌟 UI 點擊事件處理中心
+// 🌟 事件綁定中心 (修復畫布建立後才綁定)
 // ==========================================
 function handleUIClick(clientX, clientY) {
     const rect = canvas.getBoundingClientRect(); 
@@ -310,27 +305,45 @@ function handleUIClick(clientX, clientY) {
     if (mx > 10 && mx < 130 && my > MATRIX_SIZE + 10 && my < MATRIX_SIZE + 75) { isOknMoving = !isOknMoving; return; }
     if (mx > 470 && mx < 590 && my > MATRIX_SIZE + 10 && my < MATRIX_SIZE + 75) { oknDirection *= -1; return; }
     
-    // 🌟 新增：點擊暫停按鈕
     if (gameState === STATE.PLAYING || gameState === STATE.PAUSED) {
-        if (mx > 240 && mx < 360 && my > 720 && my < 765) {
-            gameState = gameState === STATE.PLAYING ? STATE.PAUSED : STATE.PLAYING;
-            return;
-        }
+        if (mx > 240 && mx < 360 && my > 720 && my < 765) { gameState = gameState === STATE.PLAYING ? STATE.PAUSED : STATE.PLAYING; return; }
     }
     
     if (gameState === STATE.LEADERBOARD && mx > 150 && mx < 450 && my > 680 && my < 770) { gameState = STATE.START; return; }
     
-    if (gameState === STATE.START && mx > 120 && mx < 480 && my > 480 && my < 580) { 
-        startGame(); 
-        enterFullscreen(); // 啟動自動全螢幕
-    }
+    if (gameState === STATE.START && mx > 120 && mx < 480 && my > 480 && my < 580) { startGame(); enterFullscreen(); }
 }
 
-function bindMouseEvents() { canvas.addEventListener('mousedown', (e) => { handleUIClick(e.clientX, e.clientY); }); }
+function bindMouseEvents() { 
+    // 1. 滑鼠點擊
+    canvas.addEventListener('mousedown', (e) => { handleUIClick(e.clientX, e.clientY); }); 
 
-// ==========================================
-// 鍵盤與精準觸控系統
-// ==========================================
+    // 2. 🌟 確保 canvas 存在後，才綁定觸控事件！
+    let touchStartX = 0; let touchStartY = 0;
+
+    canvas.addEventListener('touchstart', e => { 
+        if (gameState === STATE.PLAYING) { e.preventDefault(); window.mobileAccelerating = true; }
+        touchStartX = e.changedTouches[0].screenX; touchStartY = e.changedTouches[0].screenY; 
+    }, {passive: false});
+
+    canvas.addEventListener('touchend', e => {
+        window.mobileAccelerating = false;
+        let dx = e.changedTouches[0].screenX - touchStartX; let dy = e.changedTouches[0].screenY - touchStartY;
+        
+        if (gameState === STATE.PLAYING) {
+            e.preventDefault();
+            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) { setNextDirection(dx > 0 ? 1 : -1, 0); }
+            else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) { setNextDirection(0, dy > 0 ? 1 : -1); }
+            else if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); } 
+        } else {
+            if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }
+        }
+    }, {passive: false});
+
+    canvas.addEventListener('touchcancel', () => window.mobileAccelerating = false);
+}
+
+// 全域鍵盤事件 (不需要等畫布)
 window.addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return; 
     if(["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].indexOf(e.code) > -1) e.preventDefault();
@@ -345,40 +358,12 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => keys[e.code] = false);
 
-let touchStartX = 0; let touchStartY = 0;
-
-// 🌟 精準分區防護：只在 Canvas 上綁定 touch，且只在遊玩時阻擋預設行為
-canvas.addEventListener('touchstart', e => { 
-    if (gameState === STATE.PLAYING) {
-        e.preventDefault(); // 鎖死瀏覽器滑動，確保蛇的轉向 100% 成功
-        window.mobileAccelerating = true;
-    }
-    touchStartX = e.changedTouches[0].screenX; 
-    touchStartY = e.changedTouches[0].screenY; 
-}, {passive: false});
-
-canvas.addEventListener('touchend', e => {
-    window.mobileAccelerating = false;
-    let dx = e.changedTouches[0].screenX - touchStartX; let dy = e.changedTouches[0].screenY - touchStartY;
-    
-    if (gameState === STATE.PLAYING) {
-        e.preventDefault();
-        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) { setNextDirection(dx > 0 ? 1 : -1, 0); }
-        else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) { setNextDirection(0, dy > 0 ? 1 : -1); }
-        else if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); } // 允許遊玩時點擊暫停
-    } else {
-        if (Math.abs(dx) < 15 && Math.abs(dy) < 15) { handleUIClick(e.changedTouches[0].clientX, e.changedTouches[0].clientY); }
-    }
-}, {passive: false});
-
-canvas.addEventListener('touchcancel', () => window.mobileAccelerating = false);
-
 // ==========================================
 // 雲端儲存與生命週期
 // ==========================================
 function triggerGameOver() {
     gameState = STATE.GAMEOVER;
-    exitFullscreen(); // 撞死自動退出全螢幕，方便打字
+    exitFullscreen(); 
     setTimeout(async () => {
         await fetchLeaderboardData();
         let lowestScore = globalLeaderboardData.length === 10 ? globalLeaderboardData[9].score : 0;
